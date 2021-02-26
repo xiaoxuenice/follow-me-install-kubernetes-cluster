@@ -60,28 +60,3 @@
 1. [C.部署metrics-server插件](C.metrics-server插件.md)
 1. [D.部署Harbor-Registry](D.部署Harbor-Registry.md)	
 
-## 在线阅读
-
-+ 建议：[GitBook](https://k8s-install.opsnull.com/)
-+ [Github](https://www.gitbook.com/book/opsnull/follow-me-install-kubernetes-cluster)
-
-## 电子书
-
-+ pdf 格式 [下载](https://www.gitbook.com/download/pdf/book/opsnull/follow-me-install-kubernetes-cluster)
-+ epub 格式 [下载](https://www.gitbook.com/download/epub/book/opsnull/follow-me-install-kubernetes-cluster)
-
-## 打赏
-
-如果你觉得这份文档对你有帮助，请微信扫描下方的二维码进行捐赠，加油后的 opsnull 将会和你分享更多的原创教程，谢谢！
-
-<p align="center">
-  <img src="https://github.com/opsnull/follow-me-install-kubernetes-cluster/blob/master/images/weixin_qr.jpg?raw=true" alt="weixin_qr.jpg"/>
-</p>
-
-## 广告位
-
-## 版权
-
-Copyright 2017-2020 zhangjun (geekard@qq.com)
-
-知识共享 署名-非商业性使用-相同方式共享 4.0（CC BY-NC-SA 4.0），详情见 [LICENSE](LICENSE) 文件。
