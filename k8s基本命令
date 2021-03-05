@@ -1,0 +1,191 @@
+#!/bin/bash
+kubetnetes 核心组件:
+master----------------
+etcd		消息中间件，保存了整个集群的状态； 
+apiserver		是整个系统的对外接口，并提供认证、授权、访问控制、API注册和 发现等机制； 
+controller manager	负责维护集群的状态，比如故障检测、自动扩展、滚动更新等，负责管理控制器，包括 endpoint-controller（刷新服务和 pod 的关联信息）和 replication-controller（维护某个 pod 的复制为配置的数值）
+scheduler		负责资源的调度，按照预定的调度策略将Pod调度到相应的机器上；
+slave------------------- 
+kubelet		是工作节点执行操作的 agent，负责具体的容器生命周期管理，根据从数据库中获取的信息来管理容器，并上报 pod 运行状态等，同时也负责Volume（CVI）和网络（CNI) 的管理；
+Container runtime	负责镜像管理以及Pod和容器的真正运行（CRI）；
+kube-proxy	负责为Service提供cluster内部的服务发现和负载均衡，网络代理转发，是一个简单的网络访问代理，同时也是一个 Load Balancer。它负责将访问到某个服务的请求具体分配给工作节点上的 Pod
+-------------------------------------------------------------------------------------------------------------- 
+-------------------------------------------------------------------------------------------------------------- 
+Kubernetes基本概念:
+Pod  （ 节点）		是一组紧密关联的容器集合，调度的基本单位。Pod的设计理念是支持多个容器在一个Pod中共享网络和 文件系统，可以通过进程间通信和文件共享这种简单高效的方式组合完成服务。
+Node（容器组）		Pod真正运行的主机，可以物理机，也可以是虚拟机。为了管理Pod，每个Node 节点上至少要运行container runtime（比如docker或者rkt）、 kubelet 和 kube- proxy 服务。
+Replication Controller 	是用来通过label关联管理Pod的，每个RC由一个或多个Pod组成
+Label			是用于区分Pod、Service、RC的key/value键值对，Pod、Service、RC可以有多个label，但是每个label的key只能对应一个value，整个系统都是通过Label进行关联，得到真正需要操作的目标
+Service			k8s的最小操作单元，是定义在集群中一组运行Pod集合的抽象资源，对外为一个单一的访问接口，分配一个唯一的IP
+kubectl 			客户端命令行工具，将接收的命令，发送给kube-apiserver，作为对整个平台操作的入口
+Replication Controller 	负责维持Pods中的正常运行的Pod的个数
+Endpoints Controller 	负责维持Pods和Service的关联关系
+Node Controller 		负责整个系统中node up 或down的状态的响应和通知
+Service Account & Token Controllers	负责为新的命名空间创建默认的账号和API访问的Token
+flannel　			IP地址的分配
+accessing_the_api		端口，IP 地址和代理的防火墙规则。
+ux			用户可以通过 web 界面操作 Kubernetes。
+CNI			Container Network Interface的简称
+Replication Controller 		rc		来部署、升级Pod
+Replica Set  			rs		下一代Replication Controller
+Deployment 					更加方便的管理Pod和Replica Set
+-详细概念---------------------------------------------------------------------------------------------------- 
+节点		在 Kubernetes 中，节点是实际工作的点，节点可以是虚拟机或者物理机器，依赖于一个集群环境。每个节点都有一些必要的服务以运行容器组，并且它们都可以通过主节点来管理。必要服务包括 Docker，kubelet 和代理服务
+容器状态		节点周期：Pending，Running，Terminated。节点状态：NodeReachable 表示集群可达，NodeReady 表示 kubelet 返回 Status Ok 并且 HTTP 状态检查健康。
+节点管理		节点并非 Kubernetes 创建，而是由云平台创建，或者就是物理机器、虚拟机。在 Kubernetes 中，节点仅仅是一条记录，节点创建之后，Kubernetes 会检查其是否可用。
+节点控制		在 Kubernetes 主节点中，节点控制器是用来管理节点的组件。主要包含：集群范围内节点同步，单节点生命周期管理。可以使用 kubectl 来一条一条的添加节点。
+容器组		容器组是创建，调度，管理的最小单位。 一个容器组使用相同的 Docker 容器并共享卷（挂载点）。一个容器组是一个特定应用的打包集合，包含一个或多个容器
+容器组管理	容器组是一个应用管理和部署的高层次抽象，同时也是一组容器的接口。容器组是部署、水平放缩的最小单位
+容器组的生命状态	包括若干状态值：pending、running、succeeded(所有的容器都正常退出。)、failed。
+	
+-------------------------------------------------------------------------------------------------------------- 
+-------------------------------------------------------------------------------------------------------------- 
+部署 Kubernetes几种方式部署 Kubernetes：	kubeadm，docker-desktop，k3s
+------------------------------------
+使用 kubeadm 部署 kubernetes
+1,安装docker
+yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo && yum -y install docker-ce --nobest
+2，安装 kubelet kubeadm kubectl
+cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+yum install -y kubelet kubeadm kubectl
+3，修改内核的运行参数
+cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.ipv4.ip_forward                 = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+EOF
+sysctl --system
+swapoff -a
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab 
+echo "export KUBECONFIG=/etc/kubernetes/admin.conf" >> ~/.bash_profile
+source /root/.bash_profile
+
+4，配置 kubelet（rpm -ql kubelet 查看具体）
+cat > /usr/lib/systemd/system/kubelet.service.d/10-proxy-ipvs.conf << EOF         
+[Service]                         
+ExecStartPre=-/sbin/modprobe ip_vs   
+ExecStartPre=-/sbin/modprobe ip_vs_rr
+ExecStartPre=-/sbin/modprobe ip_vs_wrr
+ExecStartPre=-/sbin/modprobe ip_vs_sh
+EOF
+5，部署 （master）
+kubeadm init --image-repository registry.cn-hangzhou.aliyuncs.com/google_containers  --pod-network-cidr 10.244.0.0/16  --v 5  --ignore-preflight-errors=all
+     部署 （slave）
+kubeadm join 192.168.116.200:6443 --token rzmegv.g8k9kq60ectkrgov   --discovery-token-ca-cert-hash sha256:a32c8299024f36a395b28ed58804dc41737d70ba544b3ece82450b57b81a9074 
+6，部署 CNI （flannel）
+kubectl get node -o yaml | grep CIDR
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+7，查看
+scp /etc/kubernetes/admin.conf 192.168.116.201:/etc/kubernetes/		master 的 admin.conf拷贝到各个节点
+kubectl  get nodes							查看节点
+kubectl  get all -A 							查看启动的服务
+8，部署 Dashboard（仪表盘）
+https://github.com/kubernetes/dashboard/releases			选择对应版本
+wget https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
+-------------修改
+  type: NodePort
+  ports:
+    - port: 443
+      targetPort: 8443
+      nodePort: 30001
+-------------
+kubectl create  -f recommended.yaml
+kubectl get pod --all-namespaces
+kubectl -n kubernetes-dashboard get pods
+kubectl -n kubernetes-dashboard get svc
+curl https://127.0.0.1:30001
+------------token
+kubectl create clusterrolebinding dashboard-admin --clusterrole=cluster-admin --serviceaccount=kube-system:dashboard-admin
+kubectl describe secret -n kube-system `kubectl get secrets -n kube-system | grep dashboard-admin | awk '{print $1}'` | grep -E '^token' | awk '{print $2}'
+-------------------------------------------------------------------------------------------------------------- 
+-------------------------------------------------------------------------------------------------------------- 
+YAML  bind常用类型                                     Endpoints、 Service、  Deployment、Pod  
+-------------------------------------------------------------------------------------------------------------- 
+-------------------------------------------------------------------------------------------------------------- 
+1、 Endpoints   可以把外部的链接到k8s系统中,如下可以把199.199.199.199:3306 链接到k8s内部
+      Service部署一个内部虚拟IP，其他deployment可以链接。
+-------------
+[root@a test]# cat mysql-service.yaml 
+apiVersion: v1					#aip版本
+kind: Service					#资源类型
+metadata:					#元数据
+   name: mysql-service				#Service 的名称
+   namespace: test					#命名空间
+spec:					
+ ports:
+ - port: 12341
+   targetPort: 3306
+   protocol: TCP
+[root@a test]# cat mysql-endpoints.yaml 
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: mysql-service
+  namespace: test
+subsets:
+  - addresses:
+    - ip: 199.199.199.199
+    ports:
+    - port: 3306
+      protocol: TCP
+----------
+kubectl apply -f mysql-service.yaml 					部署service			
+kubectl apply -f mysql-endpoints.yaml 				部署endpoints
+kubectl describe service mysql-service					获取详细信息
+kubectl get service							
+kubectl get endpoints
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2，Deployment 控制器适合部署无状态的应用服务，用来管理pod和replicaset，具有上线部署、副本设定、滚动更新、回滚等功能，还可提供声明式更新
+
+[root@a test]# cat nginx-deployment.yaml 
+apiVersion: apps/v1
+kind: Deployment
+metadata:							#元数据
+   name: nginx-deployment						#service的名称
+   labels:
+      app: nginx
+spec:								#详细说明书
+  replicas: 3
+  strategy:
+    rollingUpdate:  							#由于replicas为3,则整个升级,pod个数在2-4个之间
+      maxSurge: 1      							#滚动升级时会先启动1个pod
+      maxUnavailable: 1 						#滚动升级时允许的最大Unavailable的pod个数
+  selector:
+    matchLabels: 
+      app: nginx
+  template:
+   metadata:
+      labels:
+        app: nginx							#模板名称
+   spec:								#定义容器模板，该模板可以包含多个容器
+      containers:
+      - name: nginx-container-aaaa
+        image: nginx
+        ports:
+        - containerPort: 80
+---------
+kubectl apply -f nginx-deployment.yaml 					部署nginx(只有容器ip，没有集群ip）
+kubectl get endpoints	
+kubectl get deployment -o wide
+kubectl get service								
+kubectl expose deployment nginx-deployment  --cluster-ip=10.111.111.111		暴露 ningx-deployment 端口，--type=NodePort 为节点也暴露端口。  --port=803 集群端口 ，--target-port=80 容器端口， --type=NodePort 节点随机端口 
+kubectl get service								再次查看，nginx-deployment有了集群ip地址10.111.111.111 
+---------
+kubectl edit deployment nginx-deployment --record				修改文件，不建议
+kubectl scale deployment nginx-deployment --replicas=10  --record			弹性伸缩	       --record （history里面记录命令，重要参数）
+kubectl set image deploy nginx-deployment nginx-container-aaaa=nginx:1.18 --record	镜像升级         nginx-deployment容器镜像
+kubectl rollout history deployment nginx-deployment				查看历史版本   
+kubectl rollout undo deployment nginx-deployment				回滚到上一个版本
+kubectl rollout undo deployment nginx-deployment  --to-revision=1		回滚到版本1 
+kubectl get deployment -o wide						可以查看nginx版本	
+kubectl describe pod podname						排错，常见flannel异常
+kubectl rollout pause deployment/nginx-deployment2  				暂停升级
+kubectl rollout resume deployment/nginx-deployment2  				继续升级
